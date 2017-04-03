@@ -1,7 +1,16 @@
 
-use_jbuilder = yes?("Use jbuilder to Build JSON APIs?")
-use_guard_rails = yes?("Use Guard Rails to restart Rails server?")
-use_slim = yes?("Use Slim?")
+as_model = yes?("Create Rails app as data model only?")
+
+use_jbuilder = false
+use_guard_rails = false
+use_slim = false
+
+unless as_model
+  use_jbuilder = yes?("Use jbuilder to Build JSON APIs?")
+  use_guard_rails = yes?("Use Guard Rails to restart Rails server?")
+  use_slim = yes?("Use Slim?")
+end
+
 use_rspec = yes?("Use rspec to test?")
 
 comment_lines 'Gemfile', /gem 'jbuilder'/ unless use_jbuilder
@@ -16,17 +25,17 @@ gem_group :development do
   gem 'capistrano-bundler', '~> 1.2'
   gem 'capistrano-passenger'
   gem 'capistrano-git-with-submodules', '~> 2.0'
-end
+end unless as_model
 
 gem_group :development, :test do
   # guard
   gem 'guard', '~> 2.14', '>= 2.14.1'
   gem 'guard-rspec', '~> 4.7', '>= 4.7.3'
   gem 'guard-bundler'
-  gem 'guard-livereload'
+  gem 'guard-livereload' unless as_model
   gem 'guard-rails' if use_guard_rails
 
-  gem 'letter_opener', '~> 1.4', '>= 1.4.1'
+  gem 'letter_opener', '~> 1.4', '>= 1.4.1' unless as_model
 
   gem 'pry-rails'
   gem 'rails-erd', '~> 1.5'
@@ -36,11 +45,11 @@ gem_group :test do
   gem 'simplecov', '~> 0.14.1'
   # test
   gem 'rspec-rails', '~> 3.5' if use_rspec
-  gem 'capybara', '~> 2.13'
+  gem 'capybara', '~> 2.13' unless as_model
   gem 'factory_girl_rails', '~> 4.8'
   gem 'database_cleaner', '~> 1.5', '>= 1.5.3'
   gem 'shoulda-matchers', '~> 3.1', '>= 3.1.1'
-  gem 'email_spec', '~> 2.1'
+  gem 'email_spec', '~> 2.1' unless as_model
 end
 
 after_bundle do
@@ -110,9 +119,11 @@ after_bundle do
 
   application <<-CODE.strip_heredoc
     config.generators do |g|
+          #{'
           g.helper false
           g.stylesheets false
           g.javascripts false
+          ' if as_model}
           #{'g.test_framework :rspec' if use_rspec }
           #{'g.jbuilder false' unless use_jbuilder}
         end
@@ -124,8 +135,91 @@ after_bundle do
   git add: '.'
   git commit: '-a -m "setup for guard"'
 
-  git add: '.'
-  environment 'config.action_mailer.delivery_method = :letter_opener', env: 'development'
-  git commit: '-a -m "setup for letter_opener"'
+  unless as_model
+    git add: '.'
+    environment 'config.action_mailer.delivery_method = :letter_opener', env: 'development'
+    git commit: '-a -m "setup for letter_opener"'
+  end
+
+  if as_model
+
+    remove_dir 'app/assets'
+    remove_dir 'app/channels'
+    remove_dir 'app/controllers'
+    remove_dir 'app/helpers'
+    remove_dir 'app/jobs'
+    remove_dir 'app/mailers'
+    remove_dir 'app/views'
+
+    add_file "#{name}.gemspec", <<-CODE.strip_heredoc
+    $:.push File.expand_path("../lib", __FILE__)
+
+    # Describe your gem and declare its dependencies:
+    Gem::Specification.new do |s|
+      s.name        = "#{name}"
+      s.version     = '0.0.1'
+      s.authors     = ["author"]
+      s.email       = ["author@example.net"]
+      s.homepage    = ""
+      s.summary     = "Summary of Account."
+      s.description = "Description of Account."
+      s.license     = "MIT"
+
+      s.files = Dir[
+        "app/models/**/*",
+        "config/locales/**/*",
+        "db/migrate/**/*",
+        "db/seeds.rb",
+        "lib/#{name}/**/*",
+        "MIT-LICENSE", "Rakefile", "README.md"]
+
+      s.add_runtime_dependency "rails", "~> 5.0.2"
+    end
+    CODE
+
+    add_file "lib/#{name}/railtie.rb", <<-CODE.strip_heredoc
+    module #{name.classify}
+      class Railtie < Rails::Railtie
+
+        initializer '#{name}.set_paths', before: :bootstrap_hook do |app|
+          ActiveSupport::Dependencies.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
+          $LOAD_PATH.unshift File.expand_path('../../app/models', __dir__)
+          $LOAD_PATH.unshift File.expand_path('../../app/models/concerns', __dir__)
+
+          app.config.paths['db/migrate'].unshift File.expand_path('../../db/migrate', __dir__)
+          app.config.paths['db/seeds.rb'].unshift File.expand_path('../../db/seeds.rb', __dir__)
+          app.config.paths['config/locales'].unshift File.expand_path('../../config/locales', __dir__)
+        end
+
+        initializer '#{name}.add_locales' do |app|
+          app.config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
+        end
+      end
+    end
+    CODE
+
+    append_file 'README.md', <<-README.strip_heredoc
+
+    ## Include this project as a Model lib
+
+    Go to your destination project directory, add this into \`Gemfile\`
+
+      gem '#{name}', path: '../#{name}'
+
+    or
+
+      gem '#{name}', git: 'http://your.git-repo.com/#{name}.git'
+
+    add this into \`config/application.rb\`
+
+      require '#{name}/railtie'
+
+    Now, you can call #{name}'s models from your destination project
+
+    README
+
+    git add: '.'
+    git commit: '-a -m "setup for model project"'
+  end
 end
 
