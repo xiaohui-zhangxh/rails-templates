@@ -27,6 +27,10 @@ gem_group :development do
   gem 'capistrano-git-with-submodules', '~> 2.0'
 end unless as_model
 
+gem_group :development do
+  gem 'rails-i18n-generator'
+end
+
 gem_group :development, :test do
   # guard
   gem 'guard', '~> 2.14', '>= 2.14.1'
@@ -104,14 +108,16 @@ after_bundle do
     end
     CODE
 
-    add_file 'spec/support/api.rb', <<-CODE.strip_heredoc
-    RSpec.configure do |config|
-      config.include RSpec::Rails::RequestExampleGroup, type: :api
-      config.before(:each, type: :api) do |example|
-        host! 'api.example.com'
+    unless as_model
+      add_file 'spec/support/api.rb', <<-CODE.strip_heredoc
+      RSpec.configure do |config|
+        config.include RSpec::Rails::RequestExampleGroup, type: :api
+        config.before(:each, type: :api) do |example|
+          host! 'api.example.com'
+        end
       end
+      CODE
     end
-    CODE
 
     git add: '.'
     git commit: '-a -m "setup for test"'
@@ -119,6 +125,7 @@ after_bundle do
 
   application <<-CODE.strip_heredoc
     config.generators do |g|
+          g.scaffold_stylesheet false # don't generate app/assets/stylesheets/scaffolds.scss
           #{'
           g.helper false
           g.stylesheets false
@@ -126,6 +133,15 @@ after_bundle do
           ' if as_model}
           #{'g.test_framework :rspec' if use_rspec }
           #{'g.jbuilder false' unless use_jbuilder}
+        end
+        I18n.config.enforce_available_locales = false
+
+        config.i18n.available_locales = ["en", "zh-CN"]
+        config.i18n.default_locale = "en".to_sym
+
+        paths['config/locales'].unshift File.expand_path('../config/locales', __dir__)
+        initializer do
+          config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
         end
   CODE
   git add: '.'
@@ -150,13 +166,14 @@ after_bundle do
     remove_dir 'app/jobs'
     remove_dir 'app/mailers'
     remove_dir 'app/views'
+    remove_dir 'vendor'
 
-    add_file "#{name}.gemspec", <<-CODE.strip_heredoc
+    add_file "#{app_name}.gemspec", <<-CODE.strip_heredoc
     $:.push File.expand_path("../lib", __FILE__)
 
     # Describe your gem and declare its dependencies:
     Gem::Specification.new do |s|
-      s.name        = "#{name}"
+      s.name        = "#{app_name}"
       s.version     = '0.0.1'
       s.authors     = ["author"]
       s.email       = ["author@example.net"]
@@ -170,18 +187,18 @@ after_bundle do
         "config/locales/**/*",
         "db/migrate/**/*",
         "db/seeds.rb",
-        "lib/#{name}/**/*",
+        "lib/#{app_name}/**/*",
         "MIT-LICENSE", "Rakefile", "README.md"]
 
-      s.add_runtime_dependency "rails", "~> 5.0.2"
+      s.add_runtime_dependency "rails", "~> 5.0.0"
     end
     CODE
 
-    add_file "lib/#{name}/railtie.rb", <<-CODE.strip_heredoc
-    module #{name.classify}
+    add_file "lib/#{app_name}/railtie.rb", <<-CODE.strip_heredoc
+    module #{app_name.classify}
       class Railtie < Rails::Railtie
 
-        initializer '#{name}.set_paths', before: :bootstrap_hook do |app|
+        initializer '#{app_name}.set_paths', before: :bootstrap_hook do |app|
           ActiveSupport::Dependencies.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
           $LOAD_PATH.unshift File.expand_path('../../app/models', __dir__)
           $LOAD_PATH.unshift File.expand_path('../../app/models/concerns', __dir__)
@@ -191,7 +208,7 @@ after_bundle do
           app.config.paths['config/locales'].unshift File.expand_path('../../config/locales', __dir__)
         end
 
-        initializer '#{name}.add_locales' do |app|
+        initializer '#{app_name}.add_locales' do |app|
           app.config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
         end
       end
@@ -204,17 +221,17 @@ after_bundle do
 
     Go to your destination project directory, add this into \`Gemfile\`
 
-      gem '#{name}', path: '../#{name}'
+      gem '#{app_name}', path: '../#{app_name}'
 
     or
 
-      gem '#{name}', git: 'http://your.git-repo.com/#{name}.git'
+      gem '#{app_name}', git: 'http://your.git-repo.com/#{app_name}.git'
 
     add this into \`config/application.rb\`
 
-      require '#{name}/railtie'
+      require '#{app_name}/railtie'
 
-    Now, you can call #{name}'s models from your destination project
+    Now, you can call #{app_name}'s models from your destination project
 
     README
 
