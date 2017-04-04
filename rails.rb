@@ -17,6 +17,7 @@ comment_lines 'Gemfile', /gem 'jbuilder'/ unless use_jbuilder
 comment_lines 'Gemfile', /gem 'tzinfo-data'/
 
 gem 'slim-rails', '~> 3.1', '>= 3.1.2' if use_slim
+gem 'rails-i18n-generator'
 
 gem_group :development do
   gem 'capistrano', '~> 3.6'
@@ -26,10 +27,6 @@ gem_group :development do
   gem 'capistrano-passenger'
   gem 'capistrano-git-with-submodules', '~> 2.0'
 end unless as_model
-
-gem_group :development do
-  gem 'rails-i18n-generator'
-end
 
 gem_group :development, :test do
   # guard
