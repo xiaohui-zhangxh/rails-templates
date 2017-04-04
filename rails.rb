@@ -134,15 +134,13 @@ after_bundle do
           #{'g.test_framework :rspec' if use_rspec }
           #{'g.jbuilder false' unless use_jbuilder}
         end
-        I18n.config.enforce_available_locales = false
 
+        # i18n config
+        I18n.config.enforce_available_locales = false
         config.i18n.available_locales = ["en", "zh-CN"]
         config.i18n.default_locale = "en".to_sym
-
         paths['config/locales'].unshift File.expand_path('../config/locales', __dir__)
-        initializer do
-          config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
-        end
+        config.i18n.railties_load_path.unshift config.paths["config/locales"]
   CODE
   git add: '.'
   git commit: '-a -m "setup generator"'
@@ -197,18 +195,14 @@ after_bundle do
     add_file "lib/#{app_name}/railtie.rb", <<-CODE.strip_heredoc
     module #{app_name.classify}
       class Railtie < Rails::Railtie
-
-        initializer '#{app_name}.set_paths', before: :bootstrap_hook do |app|
-          ActiveSupport::Dependencies.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
-          $LOAD_PATH.unshift File.expand_path('../../app/models', __dir__)
-          $LOAD_PATH.unshift File.expand_path('../../app/models/concerns', __dir__)
-
+        initializer '#{app_name}.set_paths', before: :set_autoload_paths do |app|
+          # ActiveSupport::Dependencies.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
+          # $LOAD_PATH.unshift File.expand_path('../../app/models', __dir__)
+          # $LOAD_PATH.unshift File.expand_path('../../app/models/concerns', __dir__)
+          app.config.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
           app.config.paths['db/migrate'].unshift File.expand_path('../../db/migrate', __dir__)
           app.config.paths['db/seeds.rb'].unshift File.expand_path('../../db/seeds.rb', __dir__)
           app.config.paths['config/locales'].unshift File.expand_path('../../config/locales', __dir__)
-        end
-
-        initializer '#{app_name}.add_locales' do |app|
           app.config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
         end
       end
