@@ -139,8 +139,8 @@ after_bundle do
         I18n.config.enforce_available_locales = false
         config.i18n.available_locales = ["en", "zh-CN"]
         config.i18n.default_locale = "en".to_sym
-        paths['config/locales'].unshift File.expand_path('../config/locales', __dir__)
-        config.i18n.railties_load_path.unshift config.paths["config/locales"]
+        paths['config/locales'] << File.expand_path('../config/locales', __dir__)
+        config.i18n.railties_load_path << config.paths["config/locales"]
   CODE
   git add: '.'
   git commit: '-a -m "setup generator"'
@@ -196,14 +196,28 @@ after_bundle do
     module #{app_name.classify}
       class Railtie < Rails::Railtie
         initializer '#{app_name}.set_paths', before: :set_autoload_paths do |app|
-          # ActiveSupport::Dependencies.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
-          # $LOAD_PATH.unshift File.expand_path('../../app/models', __dir__)
-          # $LOAD_PATH.unshift File.expand_path('../../app/models/concerns', __dir__)
-          app.config.autoload_paths.unshift(File.expand_path('../../app/models', __dir__))
-          app.config.paths['db/migrate'].unshift File.expand_path('../../db/migrate', __dir__)
-          app.config.paths['db/seeds.rb'].unshift File.expand_path('../../db/seeds.rb', __dir__)
+          app.config.autoload_paths << File.expand_path('../../app/models', __dir__)
+          app.config.paths['db/migrate'] << File.expand_path('../../db/migrate', __dir__)
+          # unshift locals path in order to override by main project
           app.config.paths['config/locales'].unshift File.expand_path('../../config/locales', __dir__)
           app.config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
+        end
+      end
+
+      # always load seed files from model projects first, then load seed file from main project
+      initializer '#{app_name}.hack_seed' do |app|
+        app.config.model_seeds = [] unless app.config.respond_to?(:model_seeds)
+        app.config.model_seeds << File.expand_path('../../db/seeds.rb', __dir__)
+        unless app.respond_to?(:_load_seed)
+          app.class.send :alias_method, :_load_seed, :load_seed
+          app.instance_exec do
+            def load_seed
+              config.model_seeds.each do |seed_file|
+                load(seed_file) if File.exists?(seed_file)
+              end
+              _load_seed
+            end
+          end
         end
       end
     end
