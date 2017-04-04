@@ -139,8 +139,6 @@ after_bundle do
         I18n.config.enforce_available_locales = false
         config.i18n.available_locales = ["en", "zh-CN"]
         config.i18n.default_locale = "en".to_sym
-        paths['config/locales'] << File.expand_path('../config/locales', __dir__)
-        config.i18n.railties_load_path << config.paths["config/locales"]
   CODE
   git add: '.'
   git commit: '-a -m "setup generator"'
@@ -199,6 +197,7 @@ after_bundle do
           app.config.autoload_paths << File.expand_path('../../app/models', __dir__)
           app.config.paths['db/migrate'] << File.expand_path('../../db/migrate', __dir__)
           # unshift locals path in order to override by main project
+          app.config.paths['config/locales'].glob='**/*.{rb,yml}' # search sub-dir
           app.config.paths['config/locales'].unshift File.expand_path('../../config/locales', __dir__)
           app.config.i18n.railties_load_path.unshift app.config.paths["config/locales"]
         end
